@@ -46,7 +46,7 @@ import re
 from glob import glob as original_glob
 import time
 from types import ModuleType
-from functools import partial, wraps
+from functools import partial
 import inspect
 from contextlib import contextmanager
 import errno
@@ -1843,37 +1843,30 @@ def determine_how_to_feed_output(handler, encoding, decode_errors):
     return process, finish
 
 
-def retry_on_eagain(func):
+def retry_on_eagain(func, *args, **kwargs):
     """
-    A decorator that retries calling its function on EAGAIN errors.
+    Execute *func* and re-run it if an EAGAIN error is raised.
     """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        while True:
-            try:
-                return func(*args, **kwargs)
-            except IOError as err:
-                if err.errno != errno.EAGAIN:
-                    raise
-
-    return wrapper
+    while True:
+        try:
+            return func(*args, **kwargs)
+        except IOError as err:
+            if err.errno != errno.EAGAIN:
+                raise
 
 
 def get_file_chunk_consumer(handler):
 
-    @retry_on_eagain
     def process(chunk):
-        handler.write(chunk)
+        retry_on_eagain(handler.write, chunk)
         # we should flush on an fd.  chunk is already the correctly-buffered
         # size, so we don't need the fd buffering as well
-        handler.flush()
+        retry_on_eagain(handler.flush)
         return False
 
-    @retry_on_eagain
     def finish():
         if hasattr(handler, "flush"):
-            handler.flush()
+            retry_on_eagain(handler.flush)
 
     return process, finish
 
