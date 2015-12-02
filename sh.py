@@ -1843,30 +1843,30 @@ def determine_how_to_feed_output(handler, encoding, decode_errors):
     return process, finish
 
 
-def retry_on_edeadlk(func, *args, **kwargs):
+def retry_on_eagain(func, *args, **kwargs):
     """
-    Execute *func* and re-run it if an EDEADLK error is raised.
+    Execute *func* and re-run it if an EAGAIN error is raised.
     """
     while True:
         try:
             return func(*args, **kwargs)
         except IOError as err:
-            if err.errno != errno.EDEADLK:
+            if err.errno != errno.EAGAIN:
                 raise
 
 
 def get_file_chunk_consumer(handler):
 
     def process(chunk):
-        retry_on_edeadlk(handler.write, chunk)
+        retry_on_eagain(handler.write, chunk)
         # we should flush on an fd.  chunk is already the correctly-buffered
         # size, so we don't need the fd buffering as well
-        retry_on_edeadlk(handler.flush)
+        retry_on_eagain(handler.flush)
         return False
 
     def finish():
         if hasattr(handler, "flush"):
-            retry_on_edeadlk(handler.flush)
+            retry_on_eagain(handler.flush)
 
     return process, finish
 
